@@ -1,11 +1,13 @@
 import os
 import time
+import shutil
 import traceback
 from threading import Thread
 
-from flask import Flask
+from flask import Flask, jsonify
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 
 app = Flask(__name__)
@@ -16,36 +18,113 @@ def home():
     return "Tryline scraper is running"
 
 
+@app.route("/debug")
+def debug():
+    return jsonify({
+        "google-chrome": shutil.which("google-chrome"),
+        "google-chrome-stable": shutil.which("google-chrome-stable"),
+        "chromium": shutil.which("chromium"),
+        "chromium-browser": shutil.which("chromium-browser"),
+        "chromedriver": shutil.which("chromedriver"),
+    })
+
+
 def run_test():
     driver = None
 
     try:
-        print("=" * 60, flush=True)
-        print("Opening Tryline match page...", flush=True)
+        print("\n" + "=" * 80, flush=True)
+        print("STARTING DEBUG TEST", flush=True)
+        print("=" * 80, flush=True)
 
-        print("Creating Chrome options...", flush=True)
+        # --------------------------------------------------
+        # Check what browser binaries exist
+        # --------------------------------------------------
+
+        print("\nChecking installed browser binaries...", flush=True)
+
+        print(
+            f"google-chrome: {shutil.which('google-chrome')}",
+            flush=True
+        )
+
+        print(
+            f"google-chrome-stable: {shutil.which('google-chrome-stable')}",
+            flush=True
+        )
+
+        print(
+            f"chromium: {shutil.which('chromium')}",
+            flush=True
+        )
+
+        print(
+            f"chromium-browser: {shutil.which('chromium-browser')}",
+            flush=True
+        )
+
+        print(
+            f"chromedriver: {shutil.which('chromedriver')}",
+            flush=True
+        )
+
+        # --------------------------------------------------
+        # Selenium setup
+        # --------------------------------------------------
+
+        print("\nCreating Chrome options...", flush=True)
 
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--remote-debugging-port=9222")
 
-        print("Launching Chrome...", flush=True)
+        print("Creating Chrome service...", flush=True)
 
-        driver = webdriver.Chrome(options=options)
+        service = Service()
 
-        print("Chrome launched!", flush=True)
+        print("Attempting webdriver.Chrome() ...", flush=True)
 
-        driver.get(
-            "https://tryline.com.au/match/2683/2026-round-9-dolphins-vs-melbourne-storm"
+        start_time = time.time()
+
+        driver = webdriver.Chrome(
+            service=service,
+            options=options
         )
+
+        elapsed = time.time() - start_time
+
+        print(
+            f"Chrome launched successfully in {elapsed:.2f} seconds",
+            flush=True
+        )
+
+        # --------------------------------------------------
+        # Open page
+        # --------------------------------------------------
+
+        url = (
+            "https://tryline.com.au/match/"
+            "2683/2026-round-9-dolphins-vs-melbourne-storm"
+        )
+
+        print(f"\nOpening URL: {url}", flush=True)
+
+        driver.get(url)
+
+        print("Page loaded", flush=True)
 
         time.sleep(5)
 
+        print("Getting page source...", flush=True)
+
         soup = BeautifulSoup(driver.page_source, "html.parser")
+
         page_text = soup.get_text(" ", strip=True)
 
-        print(f"Title: {driver.title}", flush=True)
+        print(f"\nTitle: {driver.title}", flush=True)
 
         print("\nFIRST 500 CHARS:", flush=True)
         print(page_text[:500], flush=True)
@@ -56,36 +135,48 @@ def run_test():
         print(f"Team Stats: {'Team Stats' in page_text}", flush=True)
         print(f"Player Stats: {'Player Stats' in page_text}", flush=True)
 
-        print("SUCCESS", flush=True)
+        print("\nSUCCESS", flush=True)
 
-    except Exception:
-        print("FAILED", flush=True)
+    except Exception as e:
+        print("\nFAILED", flush=True)
+
+        print(f"\nException Type: {type(e).__name__}", flush=True)
+        print(f"Exception Message: {str(e)}", flush=True)
+
+        print("\nTRACEBACK:", flush=True)
         print(traceback.format_exc(), flush=True)
 
     finally:
         if driver:
             try:
+                print("\nClosing browser...", flush=True)
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
 def scraper_loop():
     print("Scraper thread started", flush=True)
 
-    while True:
-        run_test()
+    # Run immediately on startup
+    run_test()
 
-        print("Sleeping for 120 seconds...", flush=True)
+    while True:
+        print("\nSleeping for 120 seconds...", flush=True)
         time.sleep(120)
+
+        run_test()
 
 
 if __name__ == "__main__":
-    Thread(target=scraper_loop, daemon=True).start()
-
     port = int(os.environ.get("PORT", 10000))
 
     print(f"Starting Flask on port {port}", flush=True)
+
+    Thread(
+        target=scraper_loop,
+        daemon=True
+    ).start()
 
     app.run(
         host="0.0.0.0",
