@@ -23,12 +23,18 @@ def run_test():
         print("=" * 60, flush=True)
         print("Opening Tryline match page...", flush=True)
 
+        print("Creating Chrome options...", flush=True)
+
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
 
+        print("Launching Chrome...", flush=True)
+
         driver = webdriver.Chrome(options=options)
+
+        print("Chrome launched!", flush=True)
 
         driver.get(
             "https://tryline.com.au/match/2683/2026-round-9-dolphins-vs-melbourne-storm"
